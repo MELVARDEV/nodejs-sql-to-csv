@@ -1,0 +1,16 @@
+﻿tableHeader,csvMapping
+accountkey,Account
+security,Security Description
+quantity,Quantity
+currency,Currency Type
+sectype,Asset Type
+unitcostlcl,Unit Cost
+totalcostlcl,Total Cost
+pricelcl,Current Price
+mktvallcl,Market Value
+ugl,Gain or Loss
+pgl,Gain or Loss %
+mktvalrc,TT$ Market Value
+passet,% of Total Value
+uglrc,TT$ Gain or Loss
+pctglrc,TT$ Gain or Loss %

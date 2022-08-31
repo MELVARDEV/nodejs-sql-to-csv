@@ -1,0 +1,15 @@
+{
+  "name": "nodejs-sql-to-csv",
+  "version": "1.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start":"node index.js"
+  },
+  "author": "",
+  "dependencies": {
+    "dotenv": "^16.0.1",
+    "mssql": "^9.0.1",
+    "papaparse": "^5.3.2"
+  }
+}
