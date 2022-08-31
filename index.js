@@ -2,37 +2,10 @@ const sql = require("mssql");
 const fs = require("fs");
 const Papa = require("papaparse");
 require("dotenv").config();
+const checks = require("./checks");
 
-// check if all required input is given
-if (
-  !(
-    process.env.DB_USER &&
-    process.env.DB_PASS &&
-    process.env.DB_SERVER &&
-    process.env.DB_NAME &&
-    process.env.DB_PORT &&
-    process.env.DB_SCHEMA &&
-    process.env.DB_TABLE &&
-    process.env.MAPPING_FILE &&
-    process.env.OUTPUT_FILE &&
-    process.env.ACCOUNT_FILTER_FILE &&
-    process.env.PERIOD_FILTER_FILE
-  )
-) {
-  throw new Error("Missing environment variables");
-}
-
-if (!fs.existsSync(process.env.MAPPING_FILE)) {
-  throw new Error("Mapping file does not exist");
-}
-
-if (!fs.existsSync(process.env.ACCOUNT_FILTER_FILE)) {
-  throw new Error("Account filter file does not exist");
-}
-
-if (!fs.existsSync(process.env.PERIOD_FILTER_FILE)) {
-  throw new Error("Period filter file does not exist");
-}
+// run the checks for the environment variables
+checks();
 
 // load and parse the csv mappings file
 const mappingString = fs.readFileSync(process.env.MAPPING_FILE, "utf8");
@@ -66,36 +39,49 @@ const periodFilter = fs.existsSync(process.env.PERIOD_FILTER_FILE)
       .filter((p) => p !== "")
   : [];
 
-// prepare filters for the query
-const accountKeyQuery = `WHERE accountKey IN (${
-  accountKeyFilter.length > 0
-    ? accountKeyFilter.map((acc) => `'${acc}'`)
-    : "'%'"
-})`;
-
-const periodQuery = `${
-  accountKeyFilter.length > 0 ? "AND" : "WHERE"
-} PeriodKey IN (${
+const periodQuery = `PeriodKey IN (${
   periodFilter.length > 0 ? periodFilter.map((period) => `'${period}'`) : "'%'"
 })`;
 
 // combine filters into one query
 const filterQueryString = `${
-  accountKeyFilter.length > 0 ? accountKeyQuery : ""
-} ${periodFilter.length > 0 ? periodQuery : ""}`;
+  periodFilter.length > 0 ? `AND ${periodQuery}` : ""
+}`;
 
 const connect = async () => {
   try {
-    // connect to the sql server and query the data
+    // connect to the sql server
     await sql.connect(
       `Server=${process.env.DB_SERVER},${process.env.DB_PORT};Database=${process.env.DB_NAME};User Id=${process.env.DB_USER};Password=${process.env.DB_PASS};Encrypt=false`
     );
 
-    const result = await sql.query(
-      `select * from ${process.env.DB_SCHEMA}.${process.env.DB_TABLE} ${filterQueryString}`
-    );
+    const rows = [];
+    const queryPromiseArray = [];
 
-    const rows = result.recordset;
+    // if there are no filters, query all rows
+    if (accountKeyFilter.length === 0) {
+      queryPromiseArray.push(
+        sql.query(
+          `SELECT * FROM ${process.env.DB_SCHEMA}.${process.env.DB_TABLE} ${filterQueryString}`
+        )
+      );
+    }
+    // else query only filtered rows, one by one
+    accountKeyFilter.forEach((accountKey) => {
+      queryPromiseArray.push(
+        sql.query(
+          `SELECT * FROM ${process.env.DB_SCHEMA}.${process.env.DB_TABLE} WHERE accountkey = '${accountKey}' ${filterQueryString}`
+        )
+      );
+    });
+
+    // wait for all queries to finish and push the results to the array
+    await Promise.all(queryPromiseArray).then((results) => {
+      results.forEach((result) => {
+        rows.push(...result.recordset);
+      });
+    });
+
     const mappedData = [];
 
     // map the data according to the the csv format
